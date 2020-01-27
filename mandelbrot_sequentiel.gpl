@@ -1,0 +1,5 @@
+set pm3d
+set view map
+set terminal postscript portrait color
+set output 'mandelbrot_sequentiel.ps'
+splot 'mandelbrot_sequentiel.out' with pm3d
