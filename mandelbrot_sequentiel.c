@@ -4,14 +4,9 @@
 #include <string.h>
 #include <errno.h>
 
-#define OUTFILE "mandelbrot_sequentiel.out"
+#include "config.h"
 
-double XMIN=-2;
-double YMIN=-2;
-double XMAX=2;
-double YMAX=2;
-double RESOLUTION=0.01;
-int NITERMAX=100;
+#define OUTFILE "mandelbrot_sequentiel.out"
 
 int main(int argc,char **argv)
 {
@@ -39,6 +34,8 @@ int main(int argc,char **argv)
       double yinit = YMIN + ypixel * RESOLUTION;
       double x=xinit;
       double y=yinit;
+	  //printf("x: %f   y: %f\n", x, y);
+
       int iter=0;
       for(iter=0;iter<NITERMAX;iter++) {
         double prevy=y,prevx=x;
