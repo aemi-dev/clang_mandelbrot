@@ -20,14 +20,13 @@ struct threadArguments
 
 void * threadFunction(void * threadArgs)
 {
-
 	struct threadArguments *args = (struct threadArguments *)threadArgs;
-	int xpixel = args->start;
+	
 	int * itertab = args->itertab;
 
 	// printf("#%d: %f --> %f\n", args->threadNum, XMIN + args->start * RESOLUTION, XMIN + (args->end - 1) * RESOLUTION);
 
-	for ( ; xpixel < args->end; xpixel++ )
+	for (int xpixel = args->start; xpixel < args->end; xpixel++ )
 	{
 		for (int ypixel = 0; ypixel < nbpixely; ypixel++ )
 		{
