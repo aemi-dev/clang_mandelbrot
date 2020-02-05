@@ -9,7 +9,7 @@ run: para.out seq.out
 	./para.out
 
 para.out: mandelbrot_para.c config.h
-	clang -O3 -lpthread $< -o $@
+	clang $< -o $@
 
 seq.out: mandelbrot_sequentiel.c config.h
-	clang -O3 $< -o $@
+	clang $< -o $@

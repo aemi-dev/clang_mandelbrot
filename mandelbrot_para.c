@@ -7,11 +7,28 @@
 
 #include "config.h"
 
-#define NBTHREADS 3
+#define TRUE 1
+#define FALSE 0
+#define NBTHREADS 2
 #define OUTFILE "mandelbrot_para.out"
+
+static unsigned int _continue =  TRUE;
+
+void* function (void* arg)
+{
+	while (_continue == TRUE);
+	pthread_exit(NULL);
+}
+
+void signalCallback (int n)
+{ _continue = FALSE; }
+
+void initSignal (void)
+{ signal(SIGINT,signalCallback); }
 
 typedef struct MandelbrotComputInfo
 {
+	unsigned int threadNum;
 	unsigned int startXPixel;
 } MandelbrotComputInfo;
 
@@ -20,6 +37,7 @@ static unsigned int xOffset = 0;
 void *mandelbrotComput(void *arg)
 {
 	MandelbrotComputInfo *info = (MandelbrotComputInfo *)arg;
+	printf("#%d: %f --> %f\n", info->threadNum, XMIN+info->startXPixel*RESOLUTION, XMIN+(info->startXPixel + xOffset - 1)*RESOLUTION);
 
 	for (int xpixel = 0; xpixel < xOffset; xpixel++)
 	{
@@ -27,9 +45,11 @@ void *mandelbrotComput(void *arg)
 		{
 			double xinit = XMIN + (info->startXPixel + xpixel) * RESOLUTION;
 			double yinit = YMIN + ypixel * RESOLUTION;
+
+			//TODO: x et y commencent à faire de la merde à la ligne 584
 			double x = xinit;
 			double y = yinit;
-			//printf("x: %f   y: %f\n", x, y);
+
 			int iter = 0;
 			for (iter = 0; iter < NITERMAX; iter++)
 			{
@@ -41,6 +61,9 @@ void *mandelbrotComput(void *arg)
 			}
 
 			const unsigned int writeIndex = (xpixel + info->startXPixel) * nbpixely + ypixel;
+			if (info->threadNum == 0)
+				printf("i: %d    x: %f   y: %f\n", writeIndex, xinit, yinit);
+
 			itertab[writeIndex] = iter;
 		}
 	}
@@ -54,11 +77,12 @@ int main(int argc, char **argv)
 	MandelbrotComputInfo infos [NBTHREADS];
 
 	/*calcul du nombre de pixel*/
-	nbpixelx = CEIL((XMAX - XMIN) / RESOLUTION);
-	nbpixely = CEIL((YMAX - YMIN) / RESOLUTION);
+	nbpixelx = ceil((XMAX - XMIN) / RESOLUTION);
+	nbpixely = ceil((YMAX - YMIN) / RESOLUTION);
+
+	initSignal();
 
 	xOffset = nbpixelx / NBTHREADS;
-	printf("nbpixelx: %d   xPixel: %d   xOffset: %f\n",nbpixelx,xOffset,xOffset*RESOLUTION);
 
 	/*allocation du tableau de pixel*/
 	if ((itertab = malloc(sizeof(int) * nbpixelx * nbpixely)) == NULL)
@@ -71,6 +95,7 @@ int main(int argc, char **argv)
 	{
 		MandelbrotComputInfo* info = &infos[i];
 		info->startXPixel = i*xOffset;
+		info->threadNum = i;
 
 		const int rc = pthread_create(&threadID[i],NULL,mandelbrotComput,(void*)info);
 		if (rc != 0)
