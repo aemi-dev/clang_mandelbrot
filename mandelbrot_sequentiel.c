@@ -43,28 +43,30 @@ int main(int argc,char **argv)
           break;
         x = prevx*prevx - prevy*prevy + xinit;
         y = 2*prevx*prevy + yinit;
+      }
+      itertab[xpixel*nbpixely+ypixel]=iter;
     }
-    itertab[xpixel*nbpixely+ypixel]=iter;
-  }
 
-/*output des resultats compatible gnuplot*/
-  if( (file=fopen(OUTFILE,"w")) == NULL ) {
-    printf("Erreur à l'ouverture du fichier de sortie : errno %d (%s) .\n",errno,strerror(errno));
-    return EXIT_FAILURE;
-  }
-  for(xpixel=0;xpixel<nbpixelx;xpixel++) {
-    for(ypixel=0;ypixel<nbpixely;ypixel++) {
-      double x = XMIN + xpixel * RESOLUTION;
-      double y = YMIN + ypixel * RESOLUTION;
-      fprintf(file,"%f %f %d\n", x, y,itertab[xpixel*nbpixely+ypixel]);
+    if ( writing ) {
+    /*output des resultats compatible gnuplot*/
+      if( (file=fopen(OUTFILE,"w")) == NULL ) {
+        printf("Erreur à l'ouverture du fichier de sortie : errno %d (%s) .\n",errno,strerror(errno));
+        return EXIT_FAILURE;
+      }
+      for(xpixel=0;xpixel<nbpixelx;xpixel++) {
+        for(ypixel=0;ypixel<nbpixely;ypixel++) {
+          double x = XMIN + xpixel * RESOLUTION;
+          double y = YMIN + ypixel * RESOLUTION;
+          fprintf(file,"%f %f %d\n", x, y,itertab[xpixel*nbpixely+ypixel]);
+        }
+        fprintf(file,"\n");
+      }
+      fclose(file);
     }
-    fprintf(file,"\n");
-  }
-  fclose(file);
 
 /*clean*/
-  free(itertab);
+    free(itertab);
 
 /*sortie du programme*/
-  return EXIT_SUCCESS;
-}
+    return EXIT_SUCCESS;
+  }

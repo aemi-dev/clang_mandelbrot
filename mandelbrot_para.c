@@ -7,64 +7,51 @@
 
 #include "config.h"
 
-#define TRUE 1
-#define FALSE 0
-#define NBTHREADS 2
+#define NBTHREAD 512
 #define OUTFILE "mandelbrot_para.out"
 
-static unsigned int _continue =  TRUE;
-
-void* function (void* arg)
+struct threadArguments
 {
-	while (_continue == TRUE);
-	pthread_exit(NULL);
-}
+	int threadNum;
+	int start;
+	int end;
+	int * itertab;
+};
 
-void signalCallback (int n)
-{ _continue = FALSE; }
-
-void initSignal (void)
-{ signal(SIGINT,signalCallback); }
-
-typedef struct MandelbrotComputInfo
+void * threadFunction(void * threadArgs)
 {
-	unsigned int threadNum;
-	unsigned int startXPixel;
-} MandelbrotComputInfo;
 
-static unsigned int xOffset = 0;
+	struct threadArguments *args = (struct threadArguments *)threadArgs;
+	int xpixel = args->start;
+	int * itertab = args->itertab;
 
-void *mandelbrotComput(void *arg)
-{
-	MandelbrotComputInfo *info = (MandelbrotComputInfo *)arg;
-	printf("#%d: %f --> %f\n", info->threadNum, XMIN+info->startXPixel*RESOLUTION, XMIN+(info->startXPixel + xOffset - 1)*RESOLUTION);
+	// printf("#%d: %f --> %f\n", args->threadNum, XMIN + args->start * RESOLUTION, XMIN + (args->end - 1) * RESOLUTION);
 
-	for (int xpixel = 0; xpixel < xOffset; xpixel++)
+	for ( ; xpixel < args->end; xpixel++ )
 	{
-		for (int ypixel = 0; ypixel < nbpixely; ypixel++)
+		for (int ypixel = 0; ypixel < nbpixely; ypixel++ )
 		{
-			double xinit = XMIN + (info->startXPixel + xpixel) * RESOLUTION;
+			double xinit = XMIN + xpixel * RESOLUTION;
 			double yinit = YMIN + ypixel * RESOLUTION;
 
-			//TODO: x et y commencent à faire de la merde à la ligne 584
 			double x = xinit;
 			double y = yinit;
 
 			int iter = 0;
-			for (iter = 0; iter < NITERMAX; iter++)
+			for ( iter = 0; iter < NITERMAX; iter++ )
 			{
-				double prevy = y, prevx = x;
+				double prevy = y;
+				double prevx = x;
+
 				if ((x * x + y * y) > 4)
+				{
 					break;
+				}
 				x = prevx * prevx - prevy * prevy + xinit;
 				y = 2 * prevx * prevy + yinit;
 			}
 
-			const unsigned int writeIndex = (xpixel + info->startXPixel) * nbpixely + ypixel;
-			if (info->threadNum == 0)
-				printf("i: %d    x: %f   y: %f\n", writeIndex, xinit, yinit);
-
-			itertab[writeIndex] = iter;
+			itertab[xpixel * nbpixely + ypixel] = iter;
 		}
 	}
 	pthread_exit(NULL);
@@ -72,65 +59,77 @@ void *mandelbrotComput(void *arg)
 
 int main(int argc, char **argv)
 {
-	FILE *file;
-	pthread_t threadID [NBTHREADS];
-	MandelbrotComputInfo infos [NBTHREADS];
 
-	/*calcul du nombre de pixel*/
+	FILE *file;
+	int thread_id;
+	pthread_t thread[NBTHREAD];
+	struct threadArguments threadArgs[NBTHREAD];
+
 	nbpixelx = ceil((XMAX - XMIN) / RESOLUTION);
 	nbpixely = ceil((YMAX - YMIN) / RESOLUTION);
 
-	initSignal();
+	int offset = nbpixelx / NBTHREAD;
 
-	xOffset = nbpixelx / NBTHREADS;
-
-	/*allocation du tableau de pixel*/
+	/*
+	 * Allocation du tableau de pixel
+	 */
 	if ((itertab = malloc(sizeof(int) * nbpixelx * nbpixely)) == NULL)
 	{
 		printf("ERREUR d'allocation de itertab, errno : %d (%s) .\n", errno, strerror(errno));
 		return EXIT_FAILURE;
 	}
 
-	for (size_t i = 0; i < NBTHREADS; ++i)
+	for ( thread_id = 0; thread_id < NBTHREAD; thread_id++)
 	{
-		MandelbrotComputInfo* info = &infos[i];
-		info->startXPixel = i*xOffset;
-		info->threadNum = i;
+		int rc = 0;
 
-		const int rc = pthread_create(&threadID[i],NULL,mandelbrotComput,(void*)info);
+		threadArgs[thread_id].start = thread_id * offset;
+		threadArgs[thread_id].end = thread_id * offset + offset;
+		threadArgs[thread_id].threadNum = thread_id;
+		threadArgs[thread_id].itertab = itertab;
+
+		rc = pthread_create(&thread[thread_id], NULL, threadFunction, (void *)&threadArgs[thread_id]);
 		if (rc != 0)
 		{
-			fprintf(stderr,"Erreur à la création du thread %zu\n", i);
-			//Attente de la fin des threas précédemment lancées
-			for (size_t j = 0; j < i; ++j)
-				pthread_join(threadID[j], NULL);
+			fprintf(stderr, "Erreur à la création du thread %d\n", thread_id);
 			return EXIT_FAILURE;
 		}
 	}
-
-	for (size_t i = 0; i < NBTHREADS; ++i)
-		pthread_join(threadID[i], NULL);
-
-	/*output des resultats compatible gnuplot*/
-	if ((file = fopen(OUTFILE, "w")) == NULL)
+	/*
+	 * Attente de la fin des threads précédemment lancées
+	 */
+	for ( thread_id = 0; thread_id < NBTHREAD; thread_id++ )
 	{
-		printf("Erreur à l'ouverture du fichier de sortie : errno %d (%s) .\n", errno, strerror(errno));
-		return EXIT_FAILURE;
+		void * ret_ptr;
+		pthread_join(thread[thread_id], &ret_ptr);
 	}
 
-	for (int xpixel = 0; xpixel < nbpixelx; xpixel++)
-	{
-		for (int ypixel = 0; ypixel < nbpixely; ypixel++)
+	if ( writing ) {
+
+		/*
+	 * Output des resultats compatible GNUPLOT
+	 */
+		if ((file = fopen(OUTFILE, "w")) == NULL)
 		{
-			double x = XMIN + xpixel * RESOLUTION;
-			double y = YMIN + ypixel * RESOLUTION;
-			fprintf(file, "%f %f %d\n", x, y, itertab[xpixel * nbpixely + ypixel]);
+			printf("Erreur à l'ouverture du fichier de sortie : errno %d (%s) .\n", errno, strerror(errno));
+			return EXIT_FAILURE;
 		}
-		fprintf(file, "\n");
-	}
-	fclose(file);
 
-	/*clean*/
+		for (int xpixel = 0; xpixel < nbpixelx; xpixel++)
+		{
+			for (int ypixel = 0; ypixel < nbpixely; ypixel++)
+			{
+				double x = XMIN + xpixel * RESOLUTION;
+				double y = YMIN + ypixel * RESOLUTION;
+				fprintf(file, "%f %f %d\n", x, y, itertab[xpixel * nbpixely + ypixel]);
+			}
+			fprintf(file, "\n");
+		}
+		fclose(file);
+
+	}
+
+	/* Clean */
 	free(itertab);
 
 	/*sortie du programme*/
