@@ -7,7 +7,7 @@
 
 #include "config.h"
 
-#define NBTHREAD 256
+#define NBTHREAD 512
 #define OUTFILE "mandelbrot_para.out"
 
 struct threadArguments
