@@ -7,7 +7,7 @@
 
 #include "config.h"
 
-#define OUTFILE "mandelbrot_sequentiel.out"
+#define OUTFILE "mandelbrot_para_omp.out"
 
 int main(int argc,char **argv)
 {
