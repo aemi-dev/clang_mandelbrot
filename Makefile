@@ -21,5 +21,4 @@ time: para.out seq.out
 	time ./omp.out
 
 omp.out: mandelbrot_para_omp.c config.h
-	export OMP_NUM_THREADS=512
 	$(CC) -Wextra -pedantic $< -o $@ -lm -fopenmp
