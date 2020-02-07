@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <errno.h>
+#include <time.h>
 
 #include "config.h"
 
@@ -15,6 +16,7 @@ struct threadArguments
 	int start;
 	int end;
 	int * itertab;
+	double * threadTimes;
 };
 
 void * threadFunction(void * threadArgs)
@@ -23,7 +25,7 @@ void * threadFunction(void * threadArgs)
 	
 	int * itertab = args->itertab;
 
-	// printf("#%d: %f --> %f\n", args->threadNum, XMIN + args->start * RESOLUTION, XMIN + (args->end - 1) * RESOLUTION);
+	time_t timerStart = time(NULL);
 
 	for (int xpixel = args->start; xpixel < args->end; xpixel++ )
 	{
@@ -52,42 +54,64 @@ void * threadFunction(void * threadArgs)
 			itertab[xpixel * nbpixely + ypixel] = iter;
 		}
 	}
-	pthread_exit(NULL);
+
+	time_t timerEnd = time(NULL);
+
+	args->threadTimes[args->threadNum] = difftime( timerEnd, timerStart );
+
+	pthread_exit( NULL );
 }
 
 int main(int argc, char **argv)
 {
-
+	double averageThreadTime, totalTime;
+	double * threadTimes;
+	int offset, rest, thread_id;
+	int * itertab;
 	FILE *file;
-	int thread_id;
+	time_t timerStart, timerEnd;
 	pthread_t thread[NBTHREAD];
 	struct threadArguments threadArgs[NBTHREAD];
 
 	nbpixelx = ceil((XMAX - XMIN) / RESOLUTION);
 	nbpixely = ceil((YMAX - YMIN) / RESOLUTION);
 
-	int offset = nbpixelx / NBTHREAD;
+	offset = nbpixelx / NBTHREAD;
+	rest = nbpixelx - NBTHREAD * offset;
+
+	printf("\nThreads ... : %d\nPixels .... : %d\nOffset .... : %d\nRest ...... : %d\n", NBTHREAD, nbpixelx, offset, rest );
 
 	/*
 	 * Allocation du tableau de pixel
 	 */
 	if ((itertab = malloc(sizeof(int) * nbpixelx * nbpixely)) == NULL)
 	{
-		printf("ERREUR d'allocation de itertab, errno : %d (%s) .\n", errno, strerror(errno));
+		printf("ERREUR d'allocation de itertab[], errno : %d (%s) .\n", errno, strerror(errno));
+		return EXIT_FAILURE;
+	}
+	if ((threadTimes = malloc( sizeof(double) * NBTHREAD ) ) == NULL) {
+		printf("ERREUR d'allocation de threadtimes[], errno : %d (%s) .\n", errno, strerror(errno));
 		return EXIT_FAILURE;
 	}
 
-	for ( thread_id = 0; thread_id < NBTHREAD; thread_id++)
-	{
-		int rc = 0;
+	timerStart = time(NULL);
 
-		threadArgs[thread_id].start = thread_id * offset;
-		threadArgs[thread_id].end = thread_id * offset + offset;
+	for ( thread_id = 0; thread_id < NBTHREAD; thread_id++ )
+	{
+		int start = thread_id == 0 ? 0 : threadArgs[thread_id - 1].end;
+		int end = start + offset;
+
+		if ( rest-- > 0 ) {
+			end = end > nbpixelx ? nbpixelx : end + 1;
+		}
+
+		threadArgs[thread_id].start = start;
+		threadArgs[thread_id].end = end;
 		threadArgs[thread_id].threadNum = thread_id;
 		threadArgs[thread_id].itertab = itertab;
+		threadArgs[thread_id].threadTimes = threadTimes;
 
-		rc = pthread_create(&thread[thread_id], NULL, threadFunction, (void *)&threadArgs[thread_id]);
-		if (rc != 0)
+		if (pthread_create(&thread[thread_id], NULL, threadFunction, (void *)&threadArgs[thread_id]) != 0)
 		{
 			fprintf(stderr, "Erreur à la création du thread %d\n", thread_id);
 			return EXIT_FAILURE;
@@ -102,7 +126,18 @@ int main(int argc, char **argv)
 		pthread_join(thread[thread_id], &ret_ptr);
 	}
 
-	if ( writing ) {
+	timerEnd = time(NULL);
+
+	totalTime = difftime( timerEnd, timerStart );
+	averageThreadTime = 0;
+	for ( size_t i = 0 ; i < NBTHREAD ; i++ ) {
+		averageThreadTime += threadTimes[i];
+	}
+
+	printf("Total Time  : %.4f seconds\n", totalTime );
+	printf("Thread Time : %.4f seconds ( average )\n", averageThreadTime / NBTHREAD );
+
+	if ( WRITE ) {
 
 		/*
 	 * Output des resultats compatible GNUPLOT

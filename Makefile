@@ -21,4 +21,4 @@ time: para.out seq.out omp.out
 	time ./omp.out
 
 omp.out: mandelbrot_para_omp.c config.h
-	$(CC) -Wall -pedantic $< -o $@ -lm
+	$(CC) -Wall -pedantic $< -o $@ -lm -fopenmp

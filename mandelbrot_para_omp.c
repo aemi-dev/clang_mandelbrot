@@ -12,9 +12,8 @@
 int main(int argc,char **argv)
 {
   int * itertab;
-  int nbpixelx;
-  int nbpixely;
-  int xpixel=0,ypixel=0;
+  int xpixel = 0;
+  int ypixel = 0;
   FILE * file;
 
 /*calcul du nombre de pixel*/
@@ -33,7 +32,6 @@ omp_set_num_threads(NBTHREAD);
 /*calcul des points*/
   #pragma omp parallel
   {
-    printf("omp thread : %d\n", omp_get_thread_num() );
     #pragma omp for
     for(xpixel=0;xpixel<nbpixelx;xpixel++)
       for(ypixel=0;ypixel<nbpixely;ypixel++) {
@@ -52,9 +50,10 @@ omp_set_num_threads(NBTHREAD);
           y = 2*prevx*prevy + yinit;
         }
         itertab[xpixel*nbpixely+ypixel]=iter;
-      }}
+      }
+    }
 
-    if ( writing ) {
+    if ( WRITE ) {
     /*output des resultats compatible gnuplot*/
       if( (file=fopen(OUTFILE,"w")) == NULL ) {
         printf("Erreur à l'ouverture du fichier de sortie : errno %d (%s) .\n",errno,strerror(errno));

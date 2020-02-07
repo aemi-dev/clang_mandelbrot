@@ -11,9 +11,8 @@
 int main(int argc,char **argv)
 {
   int * itertab;
-  int nbpixelx;
-  int nbpixely;
-  int xpixel=0,ypixel=0;
+  int xpixel=0;
+  int ypixel=0;
   FILE * file;
 
 /*calcul du nombre de pixel*/
@@ -28,7 +27,7 @@ int main(int argc,char **argv)
   }
 
 /*calcul des points*/
-  for(xpixel=0;xpixel<nbpixelx;xpixel++)
+  for(xpixel=0;xpixel<nbpixelx;xpixel++) {
     for(ypixel=0;ypixel<nbpixely;ypixel++) {
       double xinit = XMIN + xpixel * RESOLUTION;
       double yinit = YMIN + ypixel * RESOLUTION;
@@ -46,8 +45,9 @@ int main(int argc,char **argv)
       }
       itertab[xpixel*nbpixely+ypixel]=iter;
     }
+  }
 
-    if ( writing ) {
+    if ( WRITE ) {
     /*output des resultats compatible gnuplot*/
       if( (file=fopen(OUTFILE,"w")) == NULL ) {
         printf("Erreur à l'ouverture du fichier de sortie : errno %d (%s) .\n",errno,strerror(errno));
