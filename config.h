@@ -1,7 +1,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-double RESOLUTION = 0.001;
+double RESOLUTION = 0.01;
 int NITERMAX = 100000;
 int NBTHREAD = 512;
 int WRITE = 0;
