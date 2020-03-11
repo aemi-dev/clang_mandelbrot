@@ -7,10 +7,10 @@ MPICC = mpicc
 
 .PHONY: all run time mpi
 
-mpi: mpi.out
 
 all: $(EXEC)
 
+mpi: mpi.out
 run: para.out seq.out omp.out mpi.out
 	./seq.out
 	./para.out
@@ -37,8 +37,5 @@ endif
 wp.out: mandelbrot_para_write.c config.h
 	$(CC) -Wall -pedantic $< -lpthread -lm -o $@
 
-time: para.out seq.out omp.out
-	time ./seq.out
-	time ./para.out
-	time ./omp.out
-
+time: $(EXEC)
+	@for e in $^; echo running $$e; do time ./$$e; done;

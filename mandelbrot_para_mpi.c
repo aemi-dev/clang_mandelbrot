@@ -10,8 +10,6 @@
 #include "mpi.h"
 #include "config.h"
 
-#define OUTFILE "mandelbrot_para.out"
-
 long double getMicrotime()
 {
 	struct timeval currentTime;
@@ -19,6 +17,7 @@ long double getMicrotime()
 	return currentTime.tv_sec * (int)1e6 + currentTime.tv_usec;
 }
 
+//TODO: il faudra changer le nom de ça
 struct threadArguments
 {
 	int threadNum;
@@ -28,7 +27,8 @@ struct threadArguments
 	long double * threadTimes;
 };
 
-void * threadFunction(void * threadArgs)
+//TODO: il faudra changer le nom de ça
+void threadFunction(void * threadArgs)
 {
 	struct threadArguments *args = (struct threadArguments *)threadArgs;
 	
@@ -67,41 +67,50 @@ void * threadFunction(void * threadArgs)
 	long double timerEnd = getMicrotime();
 
 	args->threadTimes[args->threadNum] = (timerEnd - timerStart) / 1e6;
+}
 
-	pthread_exit( NULL );
+void exitWithCode (const int exitCode)
+{
+	MPI_Finalize();
+	exit(exitCode);
 }
 
 int main(int argc, char **argv)
 {
+	int NBPROGRAMS, realRank, displayRank;
 	MPI_Init(&argc,&argv);
-	//long double averageThreadTime;
-	//long double * threadTimes;
-	//int offset, rest, thread_id;
-	//int * itertab;
+	MPI_Comm_rank(MPI_COMM_WORLD,&realRank);
+	MPI_Comm_size(MPI_COMM_WORLD,&NBPROGRAMS);
+	displayRank = realRank + 1;
+
+	long double averageThreadTime;
+	long double * threadTimes;
+	int offset, rest, thread_id;
+	int * itertab;
 	//FILE *file;
-	//long double totalTime, timerStart, timerEnd;
-	//pthread_t thread[NBTHREAD];
-	//struct threadArguments threadArgs[NBTHREAD];
-//
-	//nbpixelx = ceil((XMAX - XMIN) / RESOLUTION);
-	//nbpixely = ceil((YMAX - YMIN) / RESOLUTION);
-//
-	//offset = nbpixelx / NBTHREAD;
-	//rest = nbpixelx - NBTHREAD * offset;
-//
-	//printf("\nThreads ... : %d\nPixels .... : %d\nOffset .... : %d\nRest ...... : %d\n", NBTHREAD, nbpixelx, offset, rest );
-//
-	///*
-	// * Allocation du tableau de pixel
-	// */
-	//if ((itertab = malloc(sizeof(int) * nbpixelx * nbpixely)) == NULL)
-	//{
-	//	printf("ERREUR d'allocation de itertab[], errno : %d (%s) .\n", errno, strerror(errno));
-	//	return EXIT_FAILURE;
-	//}
+	long double totalTime, timerStart, timerEnd;
+
+	nbpixelx = ceil((XMAX - XMIN) / RESOLUTION);
+	nbpixely = ceil((YMAX - YMIN) / RESOLUTION);
+
+	offset = nbpixelx / NBPROGRAMS;
+	rest = nbpixelx - NBPROGRAMS * offset;
+
+	printf("\nMe ... : (%d/%d)\nPixels .... : %d\nOffset .... : %d\nRest ...... : %d\n", displayRank, NBPROGRAMS, nbpixelx, offset, rest );
+
+	/*
+	 * Allocation du tableau de pixel
+	 */
+	//TODO: Pour l'instant chaque programme va allouer autant de mémoire qu'il faut pour tous les pixels. Il faudra
+	//que chaque programmes s'allouent uniquement la mémoire dont il a besoin
+	if ((itertab = malloc(sizeof(int) * offset)) == NULL)
+	{
+		printf("ERREUR d'allocation de itertab[], errno : %d (%s) .\n", errno, strerror(errno));
+		exitWithCode(EXIT_FAILURE);
+	}
 	//if ((threadTimes = malloc( sizeof(long double) * NBTHREAD ) ) == NULL) {
 	//	printf("ERREUR d'allocation de threadtimes[], errno : %d (%s) .\n", errno, strerror(errno));
-	//	return EXIT_FAILURE;
+	//	exitWithCode(EXIT_FAILURE);
 	//}
 //
 	//timerStart = getMicrotime();
@@ -115,27 +124,26 @@ int main(int argc, char **argv)
 	//		end = end > nbpixelx ? nbpixelx : end + 1;
 	//	}
 //
-	//	threadArgs[thread_id].start = start;
-	//	threadArgs[thread_id].end = end;
-	//	threadArgs[thread_id].threadNum = thread_id;
-	//	threadArgs[thread_id].itertab = itertab;
-	//	threadArgs[thread_id].threadTimes = threadTimes;
-//
-	//	if (pthread_create(&thread[thread_id], NULL, threadFunction, (void *)&threadArgs[thread_id]) != 0)
-	//	{
-	//		fprintf(stderr, "Erreur à la création du thread %d\n", thread_id);
-	//		return EXIT_FAILURE;
-	//	}
-	//}
-	///*
-	// * Attente de la fin des threads précédemment lancées
-	// */
-	//for ( thread_id = 0; thread_id < NBTHREAD; thread_id++ )
-	//{
-	//	void * ret_ptr;
-	//	pthread_join(thread[thread_id], &ret_ptr);
-	//}
-//
+	long double localTime = getMicrotime();
+	struct threadArguments threadArgs;
+	threadArgs.start = realRank * offset;
+	threadArgs.end = threadArgs.start + offset;
+	threadArgs.itertab = itertab;
+	threadArgs.threadNum = realRank;
+	threadArgs.threadTimes = &localTime;
+	printf("(%d) Compute from %d to %d\n",displayRank,threadArgs.start,threadArgs.end);
+	threadFunction(&threadArgs);
+	printf("(%d) Finish\n",displayRank);
+
+	char* fileName = alloca(sizeof("output") + (unsigned)log10(NBPROGRAMS) + 1);
+	char* rankInStr = alloca((unsigned)log10(realRank) + 1) + 1;
+
+	strcpy(fileName,"output");
+	sprintf(rankInStr,"%d\0",realRank);
+
+	strcat(fileName,rankInStr);
+	printf("(%d) Write to '%s'\n",displayRank,fileName);
+
 	//timerEnd = getMicrotime();
 //
 	//totalTime = (timerEnd - timerStart) / 1e6;
@@ -147,9 +155,9 @@ int main(int argc, char **argv)
 	//printf("Total Time  : %.6Lf seconds\n", totalTime );
 	//printf("Thread Time : %.6Lf seconds ( average )\n", averageThreadTime / NBTHREAD );
 //
-	//if ( WRITE ) {
-//
-	//	/*
+	//if ( WRITE )
+	//{
+	///**
 	// * Output des resultats compatible GNUPLOT
 	// */
 	//	if ((file = fopen(OUTFILE, "w")) == NULL)
