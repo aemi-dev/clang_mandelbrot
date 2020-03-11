@@ -5,10 +5,19 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
+#include <sys/time.h>
 
 #include "config.h"
 
 #define OUTFILE "mandelbrot_para.out"
+
+
+long double getMicrotime(){
+	struct timeval currentTime;
+	gettimeofday(&currentTime, NULL);
+	return currentTime.tv_sec * (int)1e6 + currentTime.tv_usec;
+}
+
 
 struct threadArguments
 {
@@ -16,7 +25,7 @@ struct threadArguments
 	int start;
 	int end;
 	int * itertab;
-	double * threadTimes;
+	long double * threadTimes;
 };
 
 void * threadFunction(void * threadArgs)
@@ -25,7 +34,7 @@ void * threadFunction(void * threadArgs)
 	
 	int * itertab = args->itertab;
 
-	time_t timerStart = time(NULL);
+	long double timerStart = getMicrotime();
 
 	for (int xpixel = args->start; xpixel < args->end; xpixel++ )
 	{
@@ -55,21 +64,21 @@ void * threadFunction(void * threadArgs)
 		}
 	}
 
-	time_t timerEnd = time(NULL);
+	long double timerEnd = getMicrotime();
 
-	args->threadTimes[args->threadNum] = difftime( timerEnd, timerStart );
+	args->threadTimes[args->threadNum] = (timerEnd - timerStart) / 1e6;
 
 	pthread_exit( NULL );
 }
 
 int main(int argc, char **argv)
 {
-	double averageThreadTime, totalTime;
-	double * threadTimes;
+	long double averageThreadTime;
+	long double * threadTimes;
 	int offset, rest, thread_id;
 	int * itertab;
 	FILE *file;
-	time_t timerStart, timerEnd;
+	long double totalTime, timerStart, timerEnd;
 	pthread_t thread[NBTHREAD];
 	struct threadArguments threadArgs[NBTHREAD];
 
@@ -89,12 +98,12 @@ int main(int argc, char **argv)
 		printf("ERREUR d'allocation de itertab[], errno : %d (%s) .\n", errno, strerror(errno));
 		return EXIT_FAILURE;
 	}
-	if ((threadTimes = malloc( sizeof(double) * NBTHREAD ) ) == NULL) {
+	if ((threadTimes = malloc( sizeof(long double) * NBTHREAD ) ) == NULL) {
 		printf("ERREUR d'allocation de threadtimes[], errno : %d (%s) .\n", errno, strerror(errno));
 		return EXIT_FAILURE;
 	}
 
-	timerStart = time(NULL);
+	timerStart = getMicrotime();
 
 	for ( thread_id = 0; thread_id < NBTHREAD; thread_id++ )
 	{
@@ -126,16 +135,16 @@ int main(int argc, char **argv)
 		pthread_join(thread[thread_id], &ret_ptr);
 	}
 
-	timerEnd = time(NULL);
+	timerEnd = getMicrotime();
 
-	totalTime = difftime( timerEnd, timerStart );
+	totalTime = (timerEnd - timerStart) / 1e6;
 	averageThreadTime = 0;
 	for ( size_t i = 0 ; i < NBTHREAD ; i++ ) {
 		averageThreadTime += threadTimes[i];
 	}
 
-	printf("Total Time  : %.4f seconds\n", totalTime );
-	printf("Thread Time : %.4f seconds ( average )\n", averageThreadTime / NBTHREAD );
+	printf("Total Time  : %.6Lf seconds\n", totalTime );
+	printf("Thread Time : %.6Lf seconds ( average )\n", averageThreadTime / NBTHREAD );
 
 	if ( WRITE ) {
 
