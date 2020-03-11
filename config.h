@@ -1,10 +1,10 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-double RESOLUTION = 0.1;
+double RESOLUTION = 0.001;
 int NITERMAX = 1000;
 int NBTHREAD = 512;
-int WRITE = 0;
+int WRITE = 1;
 
 double XMIN = -2;
 double YMIN = -2;

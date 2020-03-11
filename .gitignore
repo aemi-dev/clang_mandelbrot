@@ -37,6 +37,9 @@
 *.hex
 *.txt
 
+# Fichier GNU plot temporaires
+mpi.*
+
 # Debug files
 *.dSYM/
 *.su

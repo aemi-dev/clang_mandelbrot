@@ -10,6 +10,8 @@
 #include "mpi.h"
 #include "config.h"
 
+#define OUTFILE "mandelbrot_para_mpi.out"
+
 long double getMicrotime()
 {
 	struct timeval currentTime;
@@ -18,25 +20,11 @@ long double getMicrotime()
 }
 
 //TODO: il faudra changer le nom de ça
-struct threadArguments
+long double threadFunction(const int xOffset, int* itertab)
 {
-	int threadNum;
-	int start;
-	int end;
-	int * itertab;
-	long double * threadTimes;
-};
+	const long double timerStart = getMicrotime();
 
-//TODO: il faudra changer le nom de ça
-void threadFunction(void * threadArgs)
-{
-	struct threadArguments *args = (struct threadArguments *)threadArgs;
-	
-	int * itertab = args->itertab;
-
-	long double timerStart = getMicrotime();
-
-	for (int xpixel = args->start; xpixel < args->end; xpixel++ )
+	for (int xpixel = 0; xpixel < xOffset; xpixel++ )
 	{
 		for (int ypixel = 0; ypixel < nbpixely; ypixel++ )
 		{
@@ -64,9 +52,9 @@ void threadFunction(void * threadArgs)
 		}
 	}
 
-	long double timerEnd = getMicrotime();
+	const long double timerEnd = getMicrotime();
 
-	args->threadTimes[args->threadNum] = (timerEnd - timerStart) / 1e6;
+	return (timerEnd - timerStart) / 1e6;
 }
 
 void exitWithCode (const int exitCode)
@@ -75,39 +63,80 @@ void exitWithCode (const int exitCode)
 	exit(exitCode);
 }
 
+void compileAllOutputFileInOneFile (const int totalNumberOfProgram)
+{
+	FILE* file = fopen(OUTFILE,"w");
+
+	if (file == NULL)
+	{
+		perror("ERROR: ");
+		exitWithCode(EXIT_FAILURE);
+	}
+
+	for (int i = 0; i < totalNumberOfProgram; ++i)
+	{
+		//Même bordel que dans le main pour transformer un numéro en chaîne de caractère
+		char* fileName = alloca(sizeof("mpi.output") + ((unsigned)log10(i) + 1) + 1);
+		strcpy(fileName,"mpi.output");
+
+		const size_t iStrSize = (unsigned)log10(i) + 1;
+		char* realRankInStr = alloca(iStrSize + 1);
+		realRankInStr[iStrSize] = '\0';
+
+		sprintf(realRankInStr,"%d",i);
+
+		strcat(fileName,realRankInStr);
+
+		FILE* output_i = fopen(fileName,"r");
+		if (output_i == NULL)
+		{
+			perror("ERROR: ");
+			exitWithCode(EXIT_FAILURE);
+		}
+
+		//TODO: On pourrait peut être gérer les erreurs ici ?
+		char c = '\0';
+		while (fread(&c,sizeof(c),1,output_i) > 0)
+			fwrite(&c,sizeof(c),1,file);
+
+		fclose(output_i);
+	}
+	fclose(file);
+}
+
 int main(int argc, char **argv)
 {
-	int NBPROGRAMS, realRank, displayRank;
+	int NBPROGRAMS, realRank;
 	MPI_Init(&argc,&argv);
 	MPI_Comm_rank(MPI_COMM_WORLD,&realRank);
 	MPI_Comm_size(MPI_COMM_WORLD,&NBPROGRAMS);
-	displayRank = realRank + 1;
+	const int displayRank = realRank + 1;
 
-	long double averageThreadTime;
-	long double * threadTimes;
-	int offset, rest, thread_id;
+	int xOffset, rest;
 	int * itertab;
-	//FILE *file;
-	long double totalTime, timerStart, timerEnd;
+	FILE *file;
+	//long double totalTime, timerStart, timerEnd;
 
 	nbpixelx = ceil((XMAX - XMIN) / RESOLUTION);
 	nbpixely = ceil((YMAX - YMIN) / RESOLUTION);
 
-	offset = nbpixelx / NBPROGRAMS;
-	rest = nbpixelx - NBPROGRAMS * offset;
+	xOffset = nbpixelx / NBPROGRAMS;
+	rest = nbpixelx - NBPROGRAMS * xOffset;
 
-	printf("\nMe ... : (%d/%d)\nPixels .... : %d\nOffset .... : %d\nRest ...... : %d\n", displayRank, NBPROGRAMS, nbpixelx, offset, rest );
+	printf("\nMe ... : (%d/%d)\nPixels .... : %d\nxOffset .... : %d\nRest ...... : %d\n", displayRank, NBPROGRAMS, nbpixelx, xOffset, rest );
 
 	/*
 	 * Allocation du tableau de pixel
+	 * Chaque programmes n'allouent que ce dont il a besoin
 	 */
 	//TODO: Pour l'instant chaque programme va allouer autant de mémoire qu'il faut pour tous les pixels. Il faudra
 	//que chaque programmes s'allouent uniquement la mémoire dont il a besoin
-	if ((itertab = malloc(sizeof(int) * offset)) == NULL)
+	if ((itertab = malloc(sizeof(int) * xOffset * nbpixely)) == NULL)
 	{
-		printf("ERREUR d'allocation de itertab[], errno : %d (%s) .\n", errno, strerror(errno));
+		perror("ERROR: ");
 		exitWithCode(EXIT_FAILURE);
 	}
+
 	//if ((threadTimes = malloc( sizeof(long double) * NBTHREAD ) ) == NULL) {
 	//	printf("ERREUR d'allocation de threadtimes[], errno : %d (%s) .\n", errno, strerror(errno));
 	//	exitWithCode(EXIT_FAILURE);
@@ -118,72 +147,94 @@ int main(int argc, char **argv)
 	//for ( thread_id = 0; thread_id < NBTHREAD; thread_id++ )
 	//{
 	//	int start = thread_id == 0 ? 0 : threadArgs[thread_id - 1].end;
-	//	int end = start + offset;
+	//	int end = start + xOffset;
 //
 	//	if ( rest-- > 0 ) {
 	//		end = end > nbpixelx ? nbpixelx : end + 1;
 	//	}
 //
-	long double localTime = getMicrotime();
-	struct threadArguments threadArgs;
-	threadArgs.start = realRank * offset;
-	threadArgs.end = threadArgs.start + offset;
-	threadArgs.itertab = itertab;
-	threadArgs.threadNum = realRank;
-	threadArgs.threadTimes = &localTime;
-	printf("(%d) Compute from %d to %d\n",displayRank,threadArgs.start,threadArgs.end);
-	threadFunction(&threadArgs);
-	printf("(%d) Finish\n",displayRank);
+	
+	//La séparation des pixels à calculer est faite de façon débile pour l'instant, en divisant l'espace total des x
+	//par le nombre de programmes
+	const int start = realRank * xOffset;
+	const int end = start + xOffset;
+	printf("(%d) Compute from %d to %d\n",displayRank,start,end);
+	const long double computeTime = threadFunction(xOffset,itertab);
+	printf("(%d) Computation finished....took %.2Lfs\n",displayRank,computeTime);
 
-	char* fileName = alloca(sizeof("output") + (unsigned)log10(NBPROGRAMS) + 1);
-	char* rankInStr = alloca((unsigned)log10(realRank) + 1) + 1;
+	/**
+	 * Chaque programme écrit ses résultats dans un fichier mpi.output<id du programme>
+	 * On est en C et transformer l'id du programme en chaîne de caractère va être un peu légèrement
+	 * subtilement mais toujours abilement extrêmement casse couille
+	 */
 
-	strcpy(fileName,"output");
-	sprintf(rankInStr,"%d\0",realRank);
+	//+1 car (unsigned) joue le rôle de la fonction floor en C et (unsigned)log10([1,2,3,4,5,6,7,8,9]) = 0
+	//TODO: pourquoi ça marche pour realRank = 0 ?
+	const size_t realRankStringSize = (unsigned)log10(realRank) + 1;
 
-	strcat(fileName,rankInStr);
-	printf("(%d) Write to '%s'\n",displayRank,fileName);
+	//On alloue assez d'espace pour stocker la chaîne "mpi.output" et le numéro du programme transformer en chaîne de
+	//caractère + 1 pour le caractère nul final
+	char* fileName = alloca(sizeof("mpi.output") + realRankStringSize + 1);
+	strcpy(fileName,"mpi.output"); //strcpy copie la caractère '\0'
+
+	//Le numéro du processus est convertit en chaîne de caractères
+	const size_t realRankInStrSize = (unsigned)log10(realRank) + 1;
+	char* realRankInStr = alloca(realRankInStrSize + 1);
+	realRankInStr[realRankInStrSize] = '\0';
+
+	//Magiquement ça va écrire realRank dans realRankInStr
+	sprintf(realRankInStr,"%d",realRank);
+
+	//On concatène le nom du fichier avec le numéro du programme transformée en chaîne de caractère
+	strcat(fileName,realRankInStr);
 
 	//timerEnd = getMicrotime();
-//
+
 	//totalTime = (timerEnd - timerStart) / 1e6;
 	//averageThreadTime = 0;
 	//for ( size_t i = 0 ; i < NBTHREAD ; i++ ) {
 	//	averageThreadTime += threadTimes[i];
 	//}
-//
+
 	//printf("Total Time  : %.6Lf seconds\n", totalTime );
 	//printf("Thread Time : %.6Lf seconds ( average )\n", averageThreadTime / NBTHREAD );
-//
-	//if ( WRITE )
-	//{
-	///**
-	// * Output des resultats compatible GNUPLOT
-	// */
-	//	if ((file = fopen(OUTFILE, "w")) == NULL)
-	//	{
-	//		printf("Erreur à l'ouverture du fichier de sortie : errno %d (%s) .\n", errno, strerror(errno));
-	//		return EXIT_FAILURE;
-	//	}
-//
-	//	for (int xpixel = 0; xpixel < nbpixelx; xpixel++)
-	//	{
-	//		for (int ypixel = 0; ypixel < nbpixely; ypixel++)
-	//		{
-	//			double x = XMIN + xpixel * RESOLUTION;
-	//			double y = YMIN + ypixel * RESOLUTION;
-	//			fprintf(file, "%f %f %d\n", x, y, itertab[xpixel * nbpixely + ypixel]);
-	//		}
-	//		fprintf(file, "\n");
-	//	}
-	//	fclose(file);
-//
-	//}
-//
-	///* Clean */
-	//free(itertab);
-//
-	///*sortie du programme*/
-	MPI_Finalize();
-	return EXIT_SUCCESS;
+
+	/**
+	 * Output des resultats compatible GNUPLOT
+	 */
+	if ((file = fopen(fileName, "w")) == NULL)
+	{
+		perror("ERROR: ");
+		exitWithCode(EXIT_FAILURE);
+	}
+
+	for (int xpixel = 0; xpixel < xOffset; xpixel++)
+	{
+		for (int ypixel = 0; ypixel < nbpixely; ypixel++)
+		{
+			double x = XMIN + xpixel * RESOLUTION;
+			double y = YMIN + ypixel * RESOLUTION;
+			fprintf(file, "%f %f %d\n", x, y, itertab[xpixel * nbpixely + ypixel]);
+		}
+		fprintf(file, "\n");
+	}
+	fclose(file);
+
+	/* Clean */
+	free(itertab);
+
+	//Le programme d'id 0 va ensuite compiler tous les fichiers des autres programmes dans un fichier
+	//gnu plot final
+	/** CETTE FACON DE FAIRE N'EST QUE TEMPORAIRE, LE TEMPS DE COMPRENDRE UN PEU MIEU LE FONCTIONNEMENT 
+	 * DE MPI
+	 */
+	if (realRank == 0)
+	{
+		printf("(%d) Will compile all the files\n",displayRank);
+		compileAllOutputFileInOneFile(NBPROGRAMS);
+	}
+
+	printf("(%d) Will finish\n",displayRank);
+	/*sortie du programme*/
+	exitWithCode(EXIT_SUCCESS);
 }

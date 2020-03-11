@@ -1,41 +1,44 @@
-EXEC = seq.out para.out omp.out mpi.out
-COMP = /usr/local/opt/llvm/bin/clang
-CPPFLAGS = -I/usr/local/opt/llvm/include -fopenmp
-LDFLAGS = -L/usr/local/opt/llvm/lib
-UNAME := $(shell uname)
+EXEC = seq.out para.out mpi.out#omp.out
+CPPFLAGS := $(CPPFLAGS) -I/usr/local/opt/llvm/include
+LDFLAGS := $(LDFLAGS) -L/usr/local/opt/llvm/lib
 MPICC = mpicc
 
-.PHONY: all run time mpi
+CFLAGS = -O3 -Wall -Wextra -pedantic
 
+ifeq ($(shell uname), "Darwin")
+	CC = /usr/local/opt/llvm/bin/clang
+endif
+
+.PHONY: clean run mpi
 
 all: $(EXEC)
 
 mpi: mpi.out
+
 run: para.out seq.out omp.out mpi.out
 	./seq.out
 	./para.out
 	./omp.out
 
 seq.out: mandelbrot_sequentiel.c config.h
-	$(CC) -Wall -pedantic $< -lpthread -lm -o $@
+	$(CC) $(CPPFGLAGS) $(CFLAGS) -lm $< -o $@
 
 para.out: mandelbrot_para.c config.h
-	$(CC) -Wall -pedantic $< -lpthread -lm -o $@
-
-omp.out: mandelbrot_para_omp.c config.h
-
-mpi.out: mandelbrot_para_mpi.c config.h
-	$(MPICC) $< -o $@
-
-ifeq ($(UNAME),Darwin)
-	$(COMP) $(CPPFLAGS) $< -o $@ -lm $(LDFLAGS)
-endif
-ifeq ($(UNAME),Linux)
-	$(CC) -Wall -pedantic $< -o $@ -lm -fopenmp
-endif
+	$(CC) $(CPPFGLAGS) $(CFLAGS) -lpthread -lm $< -o $@
 
 wp.out: mandelbrot_para_write.c config.h
-	$(CC) -Wall -pedantic $< -lpthread -lm -o $@
+	$(CC) $(CPPFGLAGS) $(CFLAGS) -lpthread -lm $< -o $@
+
+omp.out: mandelbrot_para_omp.c config.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) -fopenmp -lm $< -o $@
+
+mpi.out: mandelbrot_para_mpi.c config.h
+	$(MPICC) $(CPPFGLAGS) $(CFLAGS) $< -o $@
+
+#$(CC) -Wall -pedantic $< -o $@ -lm -fopenmp
 
 time: $(EXEC)
-	@for e in $^; echo running $$e; do time ./$$e; done;
+	for e in $^; echo running $$e; do time ./$$e; done;
+
+clean:
+	rm $(EXEC)
