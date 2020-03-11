@@ -1,15 +1,17 @@
-EXEC = seq.out para.out omp.out
+EXEC = seq.out para.out omp.out mpi.out
 COMP = /usr/local/opt/llvm/bin/clang
 CPPFLAGS = -I/usr/local/opt/llvm/include -fopenmp
 LDFLAGS = -L/usr/local/opt/llvm/lib
 UNAME := $(shell uname)
+MPICC = mpicc
 
+.PHONY: all run time mpi
 
-.PHONY: all run time
+mpi: mpi.out
 
 all: $(EXEC)
 
-run: para.out seq.out omp.out
+run: para.out seq.out omp.out mpi.out
 	./seq.out
 	./para.out
 	./omp.out
@@ -21,6 +23,10 @@ para.out: mandelbrot_para.c config.h
 	$(CC) -Wall -pedantic $< -lpthread -lm -o $@
 
 omp.out: mandelbrot_para_omp.c config.h
+
+mpi.out: mandelbrot_para_mpi.c config.h
+	$(MPICC) $< -o $@
+
 ifeq ($(UNAME),Darwin)
 	$(COMP) $(CPPFLAGS) $< -o $@ -lm $(LDFLAGS)
 endif
