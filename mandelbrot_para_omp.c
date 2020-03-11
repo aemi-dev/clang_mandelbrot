@@ -30,7 +30,7 @@ omp_set_num_threads(NBTHREAD);
 /*calcul des points*/
   #pragma omp parallel
   {
-    #pragma omp for
+    #pragma omp for schedule (dynamic)
     for(int xpixel=0;xpixel<nbpixelx;xpixel++)
       for(int ypixel=0;ypixel<nbpixely;ypixel++) {
         double xinit = XMIN + xpixel * RESOLUTION;
