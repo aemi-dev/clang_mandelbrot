@@ -12,8 +12,6 @@
 int main(int argc,char **argv)
 {
   int * itertab;
-  int xpixel = 0;
-  int ypixel = 0;
   FILE * file;
 
 /*calcul du nombre de pixel*/
@@ -33,8 +31,8 @@ omp_set_num_threads(NBTHREAD);
   #pragma omp parallel
   {
     #pragma omp for
-    for(xpixel=0;xpixel<nbpixelx;xpixel++)
-      for(ypixel=0;ypixel<nbpixely;ypixel++) {
+    for(int xpixel=0;xpixel<nbpixelx;xpixel++)
+      for(int ypixel=0;ypixel<nbpixely;ypixel++) {
         double xinit = XMIN + xpixel * RESOLUTION;
         double yinit = YMIN + ypixel * RESOLUTION;
         double x=xinit;
@@ -59,8 +57,8 @@ omp_set_num_threads(NBTHREAD);
         printf("Erreur à l'ouverture du fichier de sortie : errno %d (%s) .\n",errno,strerror(errno));
         return EXIT_FAILURE;
       }
-      for(xpixel=0;xpixel<nbpixelx;xpixel++) {
-        for(ypixel=0;ypixel<nbpixely;ypixel++) {
+      for(int xpixel=0;xpixel<nbpixelx;xpixel++) {
+        for(int ypixel=0;ypixel<nbpixely;ypixel++) {
           double x = XMIN + xpixel * RESOLUTION;
           double y = YMIN + ypixel * RESOLUTION;
           fprintf(file,"%f %f %d\n", x, y,itertab[xpixel*nbpixely+ypixel]);
