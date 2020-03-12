@@ -8,7 +8,7 @@
 
 #define OUTFILE "mandelbrot_sequentiel.out"
 
-int main(int argc,char **argv)
+int main(void)
 {
   int * itertab;
   int xpixel=0;

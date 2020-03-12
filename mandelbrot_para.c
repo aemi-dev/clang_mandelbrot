@@ -31,7 +31,7 @@ struct threadArguments
 void * threadFunction(void * threadArgs)
 {
 	struct threadArguments *args = (struct threadArguments *)threadArgs;
-	
+
 	int * itertab = args->itertab;
 
 	long double timerStart = getMicrotime();
@@ -71,7 +71,7 @@ void * threadFunction(void * threadArgs)
 	pthread_exit( NULL );
 }
 
-int main(int argc, char **argv)
+int main(void)
 {
 	long double averageThreadTime;
 	long double * threadTimes;
@@ -139,7 +139,7 @@ int main(int argc, char **argv)
 
 	totalTime = (timerEnd - timerStart) / 1e6;
 	averageThreadTime = 0;
-	for ( size_t i = 0 ; i < NBTHREAD ; i++ ) {
+	for ( int i = 0 ; i < NBTHREAD ; i++ ) {
 		averageThreadTime += threadTimes[i];
 	}
 
