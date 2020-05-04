@@ -136,23 +136,6 @@ int main(int argc, char **argv)
 		perror("ERROR: ");
 		exitWithCode(EXIT_FAILURE);
 	}
-
-	//if ((threadTimes = malloc( sizeof(long double) * NBTHREAD ) ) == NULL) {
-	//	printf("ERREUR d'allocation de threadtimes[], errno : %d (%s) .\n", errno, strerror(errno));
-	//	exitWithCode(EXIT_FAILURE);
-	//}
-//
-	//timerStart = getMicrotime();
-//
-	//for ( thread_id = 0; thread_id < NBTHREAD; thread_id++ )
-	//{
-	//	int start = thread_id == 0 ? 0 : threadArgs[thread_id - 1].end;
-	//	int end = start + xOffset;
-//
-	//	if ( rest-- > 0 ) {
-	//		end = end > nbpixelx ? nbpixelx : end + 1;
-	//	}
-//
 	
 	//La séparation des pixels à calculer est faite de façon débile pour l'instant, en divisant l'espace total des x
 	//par le nombre de programmes
@@ -163,76 +146,55 @@ int main(int argc, char **argv)
 	printf("(%d) Computation finished....took %.2Lfs\n",displayRank,computeTime);
 
 	/**
-	 * Chaque programme écrit ses résultats dans un fichier mpi.output<id du programme>
-	 * On est en C et transformer l'id du programme en chaîne de caractère va être un peu légèrement
-	 * subtilement mais toujours abilement extrêmement casse couille
+	 * Les résultats sont tous envoyés au noeud numéro 0 qui va les écrires dans un fichier
 	 */
 
-	//+1 car (unsigned) joue le rôle de la fonction floor en C et (unsigned)log10([1,2,3,4,5,6,7,8,9]) = 0
-	//TODO: pourquoi ça marche pour realRank = 0 ?
-	const size_t realRankStringSize = (unsigned)log10(realRank) + 1;
+	char* fileName = OUTFILE;
 
-	//On alloue assez d'espace pour stocker la chaîne "mpi.output" et le numéro du programme transformer en chaîne de
-	//caractère + 1 pour le caractère nul final
-	char* fileName = alloca(sizeof("mpi.output") + realRankStringSize + 1);
-	strcpy(fileName,"mpi.output"); //strcpy copie la caractère '\0'
-
-	//Le numéro du processus est convertit en chaîne de caractères
-	const size_t realRankInStrSize = (unsigned)log10(realRank) + 1;
-	char* realRankInStr = alloca(realRankInStrSize + 1);
-	realRankInStr[realRankInStrSize] = '\0';
-
-	//Magiquement ça va écrire realRank dans realRankInStr
-	sprintf(realRankInStr,"%d",realRank);
-
-	//On concatène le nom du fichier avec le numéro du programme transformée en chaîne de caractère
-	strcat(fileName,realRankInStr);
-
-	//timerEnd = getMicrotime();
-
-	//totalTime = (timerEnd - timerStart) / 1e6;
-	//averageThreadTime = 0;
-	//for ( size_t i = 0 ; i < NBTHREAD ; i++ ) {
-	//	averageThreadTime += threadTimes[i];
-	//}
-
-	//printf("Total Time  : %.6Lf seconds\n", totalTime );
-	//printf("Thread Time : %.6Lf seconds ( average )\n", averageThreadTime / NBTHREAD );
-
-	/**
-	 * Output des resultats compatible GNUPLOT
-	 */
-	if ((file = fopen(fileName, "w")) == NULL)
+	if (realRank == 0)
 	{
-		perror("ERROR: ");
-		exitWithCode(EXIT_FAILURE);
-	}
-
-	for (int xpixel = 0; xpixel < xOffset; xpixel++)
-	{
-		for (int ypixel = 0; ypixel < nbpixely; ypixel++)
+		//Le programme 0 va recevoir toutes les données des autres programme et les mettre dans le
+		//fichier d'output final
+		if ((file = fopen(fileName, "w")) == NULL)
 		{
-			double x = XMIN + xpixel * RESOLUTION;
-			double y = YMIN + ypixel * RESOLUTION;
-			fprintf(file, "%f %f %d\n", x, y, itertab[xpixel * nbpixely + ypixel]);
+			perror("ERROR: ");
+			exitWithCode(EXIT_FAILURE);
 		}
-		fprintf(file, "\n");
+
+		for (int i = 0; i < NBPROGRAMS; ++i)
+		{
+			//On récupère les données calculées de chaque programme
+			if (i > 0)
+			{
+				printf("(1) Will receive data from %d\n",(i+1));
+				MPI_Recv(itertab,xOffset*nbpixely,MPI_INT,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+			}
+
+			for (int xpixel = 0; xpixel < xOffset; xpixel++)
+			{
+				for (int ypixel = 0; ypixel < nbpixely; ypixel++)
+				{
+					double x = XMIN + xpixel * RESOLUTION;
+					double y = YMIN + ypixel * RESOLUTION;
+					fprintf(file, "%f %f %d\n", x, y, itertab[xpixel * nbpixely + ypixel]);
+				}
+				fprintf(file, "\n");
+			}
+		}
+
+		fclose(file);
 	}
-	fclose(file);
+	else
+	{
+		printf("(%d) Will send calculated data to (1)\n",displayRank);
+		//Les autres programmes envoie leurs données au programme 0
+		MPI_Send(itertab,xOffset * nbpixely,MPI_INT,0,0,MPI_COMM_WORLD);
+	}
+
+	exitWithCode(EXIT_SUCCESS);
 
 	/* Clean */
 	free(itertab);
-
-	//Le programme d'id 0 va ensuite compiler tous les fichiers des autres programmes dans un fichier
-	//gnu plot final
-	/** CETTE FACON DE FAIRE N'EST QUE TEMPORAIRE, LE TEMPS DE COMPRENDRE UN PEU MIEU LE FONCTIONNEMENT 
-	 * DE MPI
-	 */
-	if (realRank == 0)
-	{
-		printf("(%d) Will compile all the files\n",displayRank);
-		compileAllOutputFileInOneFile(NBPROGRAMS);
-	}
 
 	printf("(%d) Will finish\n",displayRank);
 	/*sortie du programme*/

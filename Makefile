@@ -9,7 +9,7 @@ ifeq ($(shell uname), "Darwin")
 	CC = /usr/local/opt/llvm/bin/clang
 endif
 
-.PHONY: clean run time seq para omp mpi
+.PHONY: clean run time seq para mpi
 
 all: $(EXEC)
 
