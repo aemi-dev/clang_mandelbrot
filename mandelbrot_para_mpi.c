@@ -20,7 +20,7 @@ long double getMicrotime()
 }
 
 //TODO: il faudra changer le nom de ça
-long double threadFunction(const int xOffset, int* itertab)
+long double threadFunction(const int nodeRealNumber, const int xOffset, int* itertab)
 {
 	const long double timerStart = getMicrotime();
 
@@ -28,7 +28,7 @@ long double threadFunction(const int xOffset, int* itertab)
 	{
 		for (int ypixel = 0; ypixel < nbpixely; ypixel++ )
 		{
-			double xinit = XMIN + xpixel * RESOLUTION;
+			double xinit = XMIN + (nodeRealNumber*xOffset + xpixel) * RESOLUTION;
 			double yinit = YMIN + ypixel * RESOLUTION;
 
 			double x = xinit;
@@ -101,7 +101,7 @@ int main(int argc, char **argv)
 	const int start = realRank * xOffset;
 	const int end = start + xOffset;
 	printf("(%d) Compute from %d to %d\n",displayRank,start,end);
-	const long double computeTime = threadFunction(xOffset,itertab);
+	const long double computeTime = threadFunction(realRank, xOffset,itertab);
 	printf("(%d) Computation finished....took %.2Lfs\n",displayRank,computeTime);
 
 	/**
@@ -125,15 +125,15 @@ int main(int argc, char **argv)
 			//On récupère les données calculées de chaque programme
 			if (i > 0)
 			{
-				printf("(1) Will receive data from %d\n",(i+1));
+				printf("(1) Will receive data from (%d)\n",(i+1));
 				MPI_Recv(itertab,xOffset*nbpixely,MPI_INT,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 			}
-
+			
 			for (int xpixel = 0; xpixel < xOffset; xpixel++)
 			{
 				for (int ypixel = 0; ypixel < nbpixely; ypixel++)
 				{
-					double x = XMIN + xpixel * RESOLUTION;
+					double x = XMIN + (i*xOffset + xpixel) * RESOLUTION;
 					double y = YMIN + ypixel * RESOLUTION;
 					fprintf(file, "%f %f %d\n", x, y, itertab[xpixel * nbpixely + ypixel]);
 				}

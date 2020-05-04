@@ -57,3 +57,4 @@ dkms.conf
 
 # Result Files
 *.ps
+*.gpl
