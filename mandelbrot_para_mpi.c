@@ -63,47 +63,6 @@ void exitWithCode (const int exitCode)
 	exit(exitCode);
 }
 
-void compileAllOutputFileInOneFile (const int totalNumberOfProgram)
-{
-	FILE* file = fopen(OUTFILE,"w");
-
-	if (file == NULL)
-	{
-		perror("ERROR: ");
-		exitWithCode(EXIT_FAILURE);
-	}
-
-	for (int i = 0; i < totalNumberOfProgram; ++i)
-	{
-		//Même bordel que dans le main pour transformer un numéro en chaîne de caractère
-		char* fileName = alloca(sizeof("mpi.output") + ((unsigned)log10(i) + 1) + 1);
-		strcpy(fileName,"mpi.output");
-
-		const size_t iStrSize = (unsigned)log10(i) + 1;
-		char* realRankInStr = alloca(iStrSize + 1);
-		realRankInStr[iStrSize] = '\0';
-
-		sprintf(realRankInStr,"%d",i);
-
-		strcat(fileName,realRankInStr);
-
-		FILE* output_i = fopen(fileName,"r");
-		if (output_i == NULL)
-		{
-			perror("ERROR: ");
-			exitWithCode(EXIT_FAILURE);
-		}
-
-		//TODO: On pourrait peut être gérer les erreurs ici ?
-		char c = '\0';
-		while (fread(&c,sizeof(c),1,output_i) > 0)
-			fwrite(&c,sizeof(c),1,file);
-
-		fclose(output_i);
-	}
-	fclose(file);
-}
-
 int main(int argc, char **argv)
 {
 	int NBPROGRAMS, realRank;
