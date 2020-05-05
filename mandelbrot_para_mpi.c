@@ -100,6 +100,7 @@ int main(int argc, char **argv)
 	//par le nombre de programmes
 	const int start = realRank * xOffset;
 	const int end = start + xOffset;
+	const long double startTime = getMicrotime();
 	printf("(%d) Compute from %d to %d\n",displayRank,start,end);
 	const long double computeTime = threadFunction(realRank, xOffset,itertab);
 	printf("(%d) Computation finished....took %.2Lfs\n",displayRank,computeTime);
@@ -150,12 +151,15 @@ int main(int argc, char **argv)
 		MPI_Send(itertab,xOffset * nbpixely,MPI_INT,0,0,MPI_COMM_WORLD);
 	}
 
-	exitWithCode(EXIT_SUCCESS);
+	const long endTime = getMicrotime();
+	if (realRank == 0)
+		printf("total time : %.2Lfs\n",(endTime - startTime) / 1e6);
 
 	/* Clean */
 	free(itertab);
 
 	printf("(%d) Will finish\n",displayRank);
+
 	/*sortie du programme*/
 	exitWithCode(EXIT_SUCCESS);
 }
