@@ -1,2 +1,1 @@
-# td_mandelbrot
- 
+# Mandelbrot Fractal Parallelized Computation C Implementation
